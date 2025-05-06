@@ -1,0 +1,248 @@
+--[[  _         _____ _  _______ _____                                                             
+ | |       / ____| |/ /_   _|  __ \                                                            
+ | |      | (___ | ' /  | | | |  | |                                                           
+ | |       \___ \|  <   | | | |  | |                                                           
+ | |____   ____) | . \ _| |_| |__| |                                                           
+ |______| |_____/|_|\_\_____|_____/_____     __  _  ____     __   _______ _    _ ______ ______ 
+ |  \/  |   /\   |  __ \|  ____| |  _ \ \   / / | |/ /\ \   / //\|__   __| |  | |  ____|  ____|
+ | \  / |  /  \  | |  | | |__    | |_) \ \_/ /  | ' /  \ \_/ //  \  | |  | |__| | |__  | |__   
+ | |\/| | / /\ \ | |  | |  __|   |  _ < \   /   |  <    \   // /\ \ | |  |  __  |  __| |  __|  
+ | |  | |/ ____ \| |__| | |____  | |_) | | |    | . \    | |/ ____ \| |  | |  | | |____| |____ 
+ |_|  |_/_/    \_\_____/|______| |____/  |_|    |_|\_\   |_/_/    \_\_|  |_|  |_|______|______|
+]]
+
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local runService = game:GetService("RunService")
+local userInputService = game:GetService("UserInputService")
+local camera = workspace.CurrentCamera
+
+-- SETTINGS
+local aimPartName = "Head"
+local aimlockEnabled = false
+local rightClickHeld = false
+local dropdownVisible = false
+local maxLockDistance = 200
+
+-- KEYBIND
+local toggleBind = Enum.KeyCode.E
+local awaitingKeybind = false
+
+-- UI SETUP
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AimlockUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- STATUS LABEL
+local statusLabel = Instance.new("TextButton")
+statusLabel.Size = UDim2.new(0, 160, 0, 30)
+statusLabel.Position = UDim2.new(0, 10, 0, 10)
+statusLabel.BackgroundTransparency = 0.3
+statusLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.TextSize = 20
+statusLabel.Text = "AIMLOCK: OFF"
+statusLabel.AutoButtonColor = false
+statusLabel.Active = true
+statusLabel.Draggable = true
+statusLabel.Parent = screenGui
+
+-- CHANGE KEYBIND BUTTON
+local changeKeyButton = Instance.new("TextButton")
+changeKeyButton.Size = UDim2.new(0, 160, 0, 30)
+changeKeyButton.Position = UDim2.new(0, 10, 0, 80)
+changeKeyButton.BackgroundTransparency = 0.3
+changeKeyButton.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+changeKeyButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+changeKeyButton.Font = Enum.Font.SourceSansBold
+changeKeyButton.TextSize = 18
+changeKeyButton.Text = "Bind: E (Click to Change)"
+changeKeyButton.Parent = screenGui
+
+-- DROPDOWN CONTAINER (draggable)
+local dropdownContainer = Instance.new("Frame")
+dropdownContainer.Size = UDim2.new(0, 160, 0, 120)
+dropdownContainer.Position = UDim2.new(0, 10, 0, 45)
+dropdownContainer.BackgroundTransparency = 1
+dropdownContainer.Active = true
+dropdownContainer.Draggable = true
+dropdownContainer.Parent = screenGui
+
+-- DROPDOWN TOGGLE BUTTON
+local dropdownToggle = Instance.new("TextButton")
+dropdownToggle.Size = UDim2.new(1, 0, 0, 30)
+dropdownToggle.Position = UDim2.new(0, 0, 0, 0)
+dropdownToggle.BackgroundTransparency = 0.3
+dropdownToggle.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+dropdownToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+dropdownToggle.Font = Enum.Font.SourceSansBold
+dropdownToggle.TextSize = 18
+dropdownToggle.Text = "Target: Head ▼"
+dropdownToggle.AutoButtonColor = true
+dropdownToggle.Parent = dropdownContainer
+
+-- DROPDOWN OPTIONS FRAME
+local dropdownFrame = Instance.new("Frame")
+dropdownFrame.Size = UDim2.new(1, 0, 0, 90)
+dropdownFrame.Position = UDim2.new(0, 0, 0, 30)
+dropdownFrame.BackgroundTransparency = 0.3
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+dropdownFrame.BorderSizePixel = 0
+dropdownFrame.Visible = false
+dropdownFrame.Parent = dropdownContainer
+
+-- CREATE DROPDOWN OPTION BUTTON
+local function createOption(name, yPosition)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, 0, 0, 30)
+	button.Position = UDim2.new(0, 0, 0, yPosition)
+	button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.Font = Enum.Font.SourceSans
+	button.TextSize = 18
+	button.Text = name
+	button.AutoButtonColor = true
+	button.Parent = dropdownFrame
+
+	button.MouseButton1Click:Connect(function()
+		aimPartName = name
+		dropdownToggle.Text = "Target: " .. name .. " ▼"
+		dropdownFrame.Visible = false
+		dropdownVisible = false
+	end)
+end
+
+-- ADD OPTIONS
+local options = {"Head", "HumanoidRootPart", "UpperTorso"}
+for i, option in ipairs(options) do
+	createOption(option, (i - 1) * 30)
+end
+
+-- TOGGLE UI STATE
+local function updateUI()
+	if aimlockEnabled then
+		statusLabel.Text = "AIMLOCK: ON"
+		statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+	else
+		statusLabel.Text = "AIMLOCK: OFF"
+		statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+	end
+end
+
+-- TOGGLE FUNCTION
+local function toggleAimlock()
+	aimlockEnabled = not aimlockEnabled
+	updateUI()
+end
+
+-- INPUT HANDLING
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+
+	if awaitingKeybind then
+		if input.UserInputType == Enum.UserInputType.Keyboard then
+			toggleBind = input.KeyCode
+			changeKeyButton.Text = "Bind: " .. toggleBind.Name .. " (Click to Change)"
+			awaitingKeybind = false
+		end
+		return
+	end
+
+	if input.KeyCode == toggleBind then
+		toggleAimlock()
+	end
+
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rightClickHeld = true
+	end
+end)
+
+userInputService.InputEnded:Connect(function(input, _)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rightClickHeld = false
+	end
+end)
+
+-- BUTTON CLICK EVENTS
+statusLabel.MouseButton1Click:Connect(toggleAimlock)
+
+changeKeyButton.MouseButton1Click:Connect(function()
+	awaitingKeybind = true
+	changeKeyButton.Text = "Press a key..."
+end)
+
+dropdownToggle.MouseButton1Click:Connect(function()
+	dropdownVisible = not dropdownVisible
+	dropdownFrame.Visible = dropdownVisible
+end)
+
+-- GET CLOSEST PLAYER TO MOUSE (prioritize proximity + screen proximity)
+local function getClosestPlayerToMouse()
+	local closestPlayer = nil
+	local bestScore = math.huge
+
+	for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+		if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild(aimPartName) then
+			local part = otherPlayer.Character[aimPartName]
+			local screenPos, onScreen = camera:WorldToViewportPoint(part.Position)
+
+			if onScreen then
+				local mousePos = Vector2.new(mouse.X, mouse.Y)
+				local partPos = Vector2.new(screenPos.X, screenPos.Y)
+				local screenDistance = (mousePos - partPos).Magnitude
+
+				local charPos = player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart.Position
+				local worldDistance = charPos and (charPos - part.Position).Magnitude or math.huge
+
+				-- Weighted score: 70% screen + 30% world distance
+				local score = (screenDistance * 0.7) + (worldDistance * 0.3)
+
+				if score < bestScore and screenDistance <= maxLockDistance then
+					bestScore = score
+					closestPlayer = otherPlayer
+				end
+			end
+		end
+	end
+
+	return closestPlayer
+end
+
+-- AIM AT TARGET
+local function aimAtPlayer(targetPlayer)
+	local character = targetPlayer.Character
+	if not character then return end
+	local part = character:FindFirstChild(aimPartName)
+	if not part then return end
+
+	local direction = (part.Position - camera.CFrame.Position).Unit
+	camera.CFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + direction)
+end
+
+-- Highlight setup
+local highlight = Instance.new("Highlight")
+highlight.FillTransparency = 1
+highlight.OutlineColor = Color3.new(1, 1, 0) -- Yellow
+highlight.OutlineTransparency = 0
+highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+highlight.Enabled = false
+highlight.Parent = game:GetService("CoreGui")
+
+-- Update highlight on target every frame
+runService.RenderStepped:Connect(function()
+	if not (aimlockEnabled and rightClickHeld) then
+		highlight.Enabled = false
+		return
+	end
+
+	local target = getClosestPlayerToMouse()
+	if target and target.Character and target.Character:FindFirstChild(aimPartName) then
+		aimAtPlayer(target)
+		highlight.Adornee = target.Character
+		highlight.Enabled = true
+	else
+		highlight.Enabled = false
+	end
+end)
